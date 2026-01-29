@@ -8,10 +8,6 @@ from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 import pinecone
 from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
-
-import os
-import streamlit as st
-import pdfplumber
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_pinecone import Pinecone as PineconeVectorStore
@@ -19,13 +15,21 @@ from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 import pinecone
 
-!pip install --upgrade "pinecone-client>=5.2.0"
+# Pinecone + embeddings
+index_name = "researchbot-index"
+PINECONE_TOKEN = st.secrets["PINECONE_TOKEN"]
+PINECONE_ENV = st.secrets.get("PINECONE_ENV", "us-east1-gcp")
 
-# ⚠️ Only for testing, don't share this publicly
-PINECONE_API_KEY = "pcsk_6Sbvwk_AAz6zejmVbJ8wfXixysVjt1jDPiQ2cL3JAmHND4PjD7R9YGkDogpZPbHB4GNrRz"
-PINECONE_ENV = "us-east1-gcp"
-
-print("✅ Pinecone key loaded successfully")
+HF_TOKEN = st.secrets["HF_TOKEN"]
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+index = PineconeVectorStore(
+    api_key=PINECONE_TOKEN,
+    environment=PINECONE_ENV,
+    index_name=index_name,
+    embedding=embeddings
+)
+if index_name not in index.list_indexes():
+    index.create_index(name=index_name, dimension=384) 
 
 # Using fast embeddings for large PDFs
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
@@ -66,7 +70,7 @@ def index_documents(chunks):
     # Convert to embeddings and upsert
     vectors = [(str(i), embeddings.embed_documents([chunk])[0], {"text": chunk}) for i, chunk in enumerate(chunks)]
     index.upsert(vectors)
-    st.success(f"✅ {len(chunks)} chunks indexed into Pinecone")
+    st.success(f" {len(chunks)} chunks indexed into Pinecone")
 
 def retrieve_context(query, top_k=5):
     # Retrieve top_k relevant chunks from Pinecone
@@ -124,7 +128,7 @@ def main():
     question = st.text_input("Enter your research question:")
     if question:
         answer = generate_answer(question)
-        st.subheader("🤖 Answer")
+        st.subheader(" Answer")
         st.write(answer)
 
     with st.sidebar:
